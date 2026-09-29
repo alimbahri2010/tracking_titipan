@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'alimbahri2010@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isSignedIn() && isValidId(userId);
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow update: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin() && isValidId(userId);
+    }
+
+    // Admins registry for superadmins
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && isValidId(adminId);
+      allow write: if isSuperAdmin() && isValidId(adminId);
+    }
+
+    // Pre-approved admin emails
+    match /preapprovals/{preapprovalId} {
+      allow read: if isSignedIn() && isValidId(preapprovalId);
+      allow write: if isSuperAdmin() && isValidId(preapprovalId);
+    }
+
+    // Daily Cashflow Transactions
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && isValidId(transactionId);
+      allow create: if isSignedIn() && isValidId(transactionId) && 
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.type in ['income', 'expense'] &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0;
+      allow update: if isSignedIn() && isValidId(transactionId) && (
+        resource.data.createdByUid == request.auth.uid || isSuperAdmin()
+      );
+      allow delete: if isSignedIn() && isValidId(transactionId) && (
+        resource.data.createdByUid == request.auth.uid || isSuperAdmin()
+      );
+    }
+
+    // Customizable Categories
+    match /categories/{categoryId} {
+      allow read: if isSignedIn() && isValidId(categoryId);
+      allow create: if isSignedIn() && isValidId(categoryId) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.type in ['income', 'expense'];
+      allow update: if isSignedIn() && isValidId(categoryId);
+      allow delete: if isSuperAdmin() && isValidId(categoryId);
+    }
+
+    // Transparent Audit Logs for transaction activities
+    match /audit_logs/{logId} {
+      allow read: if isSignedIn() && isValidId(logId);
+      allow create: if isSignedIn() && isValidId(logId);
+      allow update: if false; // Immutable audit records
+      allow delete: if isSuperAdmin() && isValidId(logId);
+    }
+
+    // Customer Delivery Tracking Orders
+    match /tracking_orders/{orderId} {
+      // Consumers can look up and read tracking orders by id/receipt, and signed-in admins can list & monitor
+      allow read: if isValidId(orderId);
+      allow create: if isSignedIn() && isValidId(orderId) &&
+        request.resource.data.orderNumber is string &&
+        request.resource.data.orderNumber.size() > 0 &&
+        request.resource.data.customerName is string &&
+        request.resource.data.customerName.size() > 0 &&
+        request.resource.data.status in ['Delivery', 'Transit', 'Pending', 'Completed'];
+      allow update: if isSignedIn() && isValidId(orderId);
+      allow delete: if (isSuperAdmin() || isSignedIn()) && isValidId(orderId);
+    }
+
+    // Consumer Tracking Inquiries / Search Logs
+    match /tracking_inquiries/{inquiryId} {
+      allow read: if isValidId(inquiryId);
+      allow create: if isValidId(inquiryId) &&
+        request.resource.data.receiptNumber is string &&
+        request.resource.data.receiptNumber.size() > 0;
+      allow update, delete: if isSuperAdmin() && isValidId(inquiryId);
+    }
+
+    // Connection testing
+    match /test/{docId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

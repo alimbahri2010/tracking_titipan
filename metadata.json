@@ -1,0 +1,6 @@
+{
+  "name": "Cashflow Titipan",
+  "description": "Aplikasi pencatatan arus kas harian pemasukan dan pengeluaran otomatis real-time dengan multi-role Superadmin & Admin untuk Titipan Moving & Storage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

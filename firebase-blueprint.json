@@ -1,0 +1,220 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role assignment (superadmin, admin, or consumer) and verification status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "admin", "consumer", "tracking"] },
+        "status": { "type": "string", "enum": ["approved", "pending", "rejected"] },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "rejectedReason": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "PreapprovedEmail": {
+      "title": "PreapprovedEmail",
+      "description": "Pre-approved admin email accounts for fast onboarding",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "admin"] },
+        "addedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "AdminRole": {
+      "title": "AdminRole",
+      "description": "Superadmin privilege tracking",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin"] },
+        "assignedAt": { "type": "string" }
+      },
+      "required": ["uid", "role"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Daily cashflow transaction entry (pemasukan atau pengeluaran)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "amount": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "date": { "type": "string" },
+        "description": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "referenceNumber": { "type": "string" },
+        "createdByUid": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdByEmail": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["type", "amount", "categoryId", "categoryName", "date", "description", "createdByUid"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Customizable transaction category for income and expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "isDefault": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "type"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Transparent audit trail of all transactions and authorization modifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "action": { "type": "string" },
+        "actionLabel": { "type": "string" },
+        "actorUid": { "type": "string" },
+        "actorName": { "type": "string" },
+        "actorEmail": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "summary": { "type": "string" },
+        "details": { "type": "object" }
+      },
+      "required": ["id", "timestamp", "action", "actorUid", "actorName", "summary"]
+    },
+    "TrackingOrder": {
+      "title": "TrackingOrder",
+      "description": "Customer delivery tracking order with GPS route, truck location, status and checkpoints",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerRole": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerAvatar": { "type": "string" },
+        "originAddress": { "type": "string" },
+        "originCity": { "type": "string" },
+        "destinationAddress": { "type": "string" },
+        "destinationCity": { "type": "string" },
+        "status": { "type": "string", "enum": ["Delivery", "Transit", "Pending", "Completed"] },
+        "progressPercent": { "type": "number" },
+        "estimatedArrival": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "driver": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "role": { "type": "string" },
+            "email": { "type": "string" },
+            "phone": { "type": "string" },
+            "avatar": { "type": "string" },
+            "plateNumber": { "type": "string" },
+            "truckType": { "type": "string" },
+            "currentSpeed": { "type": "string" },
+            "remainingDistance": { "type": "string" }
+          },
+          "required": ["name", "phone", "plateNumber"]
+        },
+        "activities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "location": { "type": "string" },
+              "time": { "type": "string" },
+              "completed": { "type": "boolean" },
+              "current": { "type": "boolean" },
+              "note": { "type": "string" }
+            },
+            "required": ["id", "location", "time", "completed"]
+          }
+        },
+        "routeCoordinates": {
+          "type": "object",
+          "properties": {
+            "pickup": { "type": "object" },
+            "dropoff": { "type": "object" },
+            "currentPosition": { "type": "object" }
+          }
+        },
+        "createdByUid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["orderNumber", "customerName", "originAddress", "destinationAddress", "status"]
+    },
+    "TrackingInquiry": {
+      "title": "TrackingInquiry",
+      "description": "Log of receipt number lookups performed by consumers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "consumerEmail": { "type": "string" },
+        "inquiredAt": { "type": "string" },
+        "clientIp": { "type": "string" },
+        "found": { "type": "boolean" }
+      },
+      "required": ["receiptNumber", "inquiredAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles with role (admin / superadmin / consumer)"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Superadmin collection for verified role checks"
+    },
+    "/preapprovals/{preapprovalId}": {
+      "schema": { "$ref": "#/entities/PreapprovedEmail" },
+      "description": "Pre-approved admin email accounts managed by Superadmin"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Income and expense transactions synced real-time across users"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Customizable cashflow categories"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Transparent audit trail of all transactions and authorization modifications"
+    },
+    "/tracking_orders/{orderId}": {
+      "schema": { "$ref": "#/entities/TrackingOrder" },
+      "description": "Customer delivery tracking orders with live GPS positions, route coordinates, status, and driver assignments"
+    },
+    "/tracking_inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/TrackingInquiry" },
+      "description": "Consumer receipt lookups and search inquiries"
+    }
+  }
+}
