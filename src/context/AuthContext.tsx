@@ -1,20 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import {
-  auth,
-  db,
-  loginWithGoogle,
-  loginWithEmail,
-  registerWithEmail,
-  logoutUser,
-  handleFirestoreError,
-  OperationType,
-} from '../firebase';
+import { supabase } from '../supabase';
 import { UserProfile, UserRole, UserStatus, LoginRoleOption } from '../types';
 
 interface AuthContextType {
-  currentUser: User | UserProfile | null;
+  currentUser: UserProfile | null;
   userProfile: UserProfile | null;
   role: UserRole;
   userStatus: UserStatus;
@@ -27,10 +16,15 @@ interface AuthContextType {
   loading: boolean;
   authError: string | null;
   authErrorCode: string | null;
+  needsEmailConfirmation: boolean;
+  passwordResetSent: boolean;
+  passwordUpdated: boolean;
   clearAuthError: () => void;
   signIn: () => Promise<void>;
   signInWithEmailUser: (email: string, pass: string, roleOption?: LoginRoleOption) => Promise<void>;
   registerWithEmailUser: (email: string, pass: string, name?: string, roleOption?: LoginRoleOption) => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
+  updateUserPassword: (password: string) => Promise<void>;
   signInAsConsumer: (identifier?: string) => void;
   signInAsDemo: (role: UserRole | 'pending') => void;
   signOut: () => Promise<void>;
@@ -45,17 +39,19 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Primary initial Superadmin email from user metadata
 const BOOTSTRAP_SUPERADMIN_EMAIL = 'alimbahri2010@gmail.com';
-const DEMO_STORAGE_KEY = 'titipan_demo_session';
 const ROLE_OPTION_STORAGE_KEY = 'titipan_preferred_role_option';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [simulatedRole, setSimulatedRole] = useState<UserRole | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authErrorCode, setAuthErrorCode] = useState<string | null>(null);
-  const [roleOption, setRoleOptionState] = useState<LoginRoleOption>('tracking');
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState<boolean>(false);
+  const [passwordResetSent, setPasswordResetSent] = useState<boolean>(false);
+  const [passwordUpdated, setPasswordUpdated] = useState<boolean>(false);
+  const [roleOption, setRoleOptionState] = useState<LoginRoleOption>('admin');
 
   const setRoleOption = (opt: LoginRoleOption) => {
     setRoleOptionState(opt);
@@ -66,10 +62,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Ensure any past instant demo session is cleared
+  const mapSupabaseUser = (user: any): UserProfile => {
+    const isSuperAdminEmail =
+      user.email?.toLowerCase() === BOOTSTRAP_SUPERADMIN_EMAIL.toLowerCase();
+    const userRole: UserRole = isSuperAdminEmail
+      ? 'superadmin'
+      : (user.user_metadata?.role as UserRole) || 'admin';
+
+    const displayName =
+      user.user_metadata?.name ||
+      user.user_metadata?.displayName ||
+      user.email?.split('@')[0] ||
+      'Pengguna Titipan';
+
+    return {
+      uid: user.id,
+      email: user.email || '',
+      displayName,
+      photoURL: user.user_metadata?.avatar_url || '',
+      role: userRole,
+      status: 'approved',
+      createdAt: user.created_at || new Date().toISOString(),
+      lastLoginAt: user.last_sign_in_at || new Date().toISOString(),
+    };
+  };
+
   useEffect(() => {
+    let isMounted = true;
+
     try {
-      localStorage.removeItem(DEMO_STORAGE_KEY);
       const saved = localStorage.getItem(ROLE_OPTION_STORAGE_KEY) as LoginRoleOption;
       if (saved === 'tracking' || saved === 'admin') {
         setRoleOptionState(saved);
@@ -77,212 +98,102 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // ignore
     }
-  }, []);
 
-  useEffect(() => {
-    let profileUnsub: (() => void) | null = null;
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (profileUnsub) {
-        profileUnsub();
-        profileUnsub = null;
-      }
-
-      if (user) {
-        // Clear demo session if real Firebase user exists
-        localStorage.removeItem(DEMO_STORAGE_KEY);
-        setCurrentUser(user);
-
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-
-          let currentRole: UserRole = 'admin';
-          let currentStatus: UserStatus = 'pending';
-
-          const isSuperAdminEmail =
-            user.email?.toLowerCase() === BOOTSTRAP_SUPERADMIN_EMAIL.toLowerCase();
-
-          if (isSuperAdminEmail) {
-            currentRole = 'superadmin';
-            currentStatus = 'approved';
-          } else if (userDocSnap.exists()) {
-            const data = userDocSnap.data() as UserProfile;
-            currentRole = data.role || 'admin';
-            currentStatus = data.status || 'approved'; // Preserve existing accounts as approved
-          } else {
-            const savedRoleOption = (localStorage.getItem(ROLE_OPTION_STORAGE_KEY) as LoginRoleOption) || roleOption;
-            if (savedRoleOption === 'tracking') {
-              currentRole = 'consumer';
-              currentStatus = 'approved';
-            } else {
-              // Check if this email is in preapprovals list
-              const cleanEmailKey = (user.email || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-              if (cleanEmailKey) {
-                try {
-                  const preDoc = await getDoc(doc(db, 'preapprovals', cleanEmailKey));
-                  if (preDoc.exists()) {
-                    currentStatus = 'approved';
-                    currentRole = (preDoc.data().role as UserRole) || 'admin';
-                  }
-                } catch (preErr) {
-                  console.warn('Check preapproval error:', preErr);
-                }
-              }
-            }
-          }
-
-          const profileData: UserProfile = {
-            uid: user.uid,
-            email: user.email || '',
-            displayName: user.displayName || user.email?.split('@')[0] || 'Pengguna Titipan',
-            photoURL: user.photoURL || '',
-            role: currentRole,
-            status: currentStatus,
-            lastLoginAt: new Date().toISOString(),
-          };
-
-          if (!userDocSnap.exists()) {
-            profileData.createdAt = new Date().toISOString();
-          } else {
-            const existing = userDocSnap.data();
-            if (existing.approvedBy) profileData.approvedBy = existing.approvedBy;
-            if (existing.approvedAt) profileData.approvedAt = existing.approvedAt;
-            if (existing.rejectedReason) profileData.rejectedReason = existing.rejectedReason;
-          }
-
-          // Save / update user profile in Firestore
-          await setDoc(userDocRef, profileData, { merge: true });
-
-          // If superadmin, ensure entry in /admins collection
-          if (currentRole === 'superadmin') {
-            await setDoc(
-              doc(db, 'admins', user.uid),
-              {
-                uid: user.uid,
-                email: user.email,
-                role: 'superadmin',
-                assignedAt: new Date().toISOString(),
-              },
-              { merge: true }
-            );
-          }
-
-          setUserProfile(profileData);
-
-          // Real-time listener for user profile updates (e.g. approval by Superadmin)
-          profileUnsub = onSnapshot(
-            userDocRef,
-            (snap) => {
-              if (snap.exists()) {
-                const updated = snap.data() as UserProfile;
-                setUserProfile((prev) => ({
-                  ...(prev || profileData),
-                  ...updated,
-                }));
-              }
-            },
-            (err) => {
-              console.warn('Real-time profile listener error:', err);
-            }
-          );
-        } catch (err) {
-          console.error('Error fetching/setting user profile:', err);
-          handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+    // 1. Initial Session Check from Supabase Auth
+    supabase.auth
+      .getSession()
+      .then(({ data: { session }, error }) => {
+        if (!isMounted) return;
+        if (error) {
+          console.warn('Supabase getSession error:', error.message);
         }
-      } else {
-        // If no real user, check if we had demo user
-        const savedDemo = localStorage.getItem(DEMO_STORAGE_KEY);
-        if (savedDemo) {
-          try {
-            const parsed = JSON.parse(savedDemo) as UserProfile;
-            setCurrentUser(parsed);
-            setUserProfile(parsed);
-          } catch {
-            setCurrentUser(null);
-            setUserProfile(null);
-          }
+        if (session?.user) {
+          const profile = mapSupabaseUser(session.user);
+          setCurrentUser(profile);
+          setUserProfile(profile);
         } else {
           setCurrentUser(null);
           setUserProfile(null);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.warn('Failed to retrieve session:', err);
+        setLoading(false);
+      });
+
+    // 2. Auth State Change Listener (Restores session, handles login/logout/recovery)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (session?.user) {
+          const profile = mapSupabaseUser(session.user);
+          setCurrentUser(profile);
+          setUserProfile(profile);
+          setNeedsEmailConfirmation(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setUserProfile(null);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        if (session?.user) {
+          const profile = mapSupabaseUser(session.user);
+          setCurrentUser(profile);
+          setUserProfile(profile);
         }
       }
       setLoading(false);
     });
 
     return () => {
-      unsubscribe();
-      if (profileUnsub) profileUnsub();
+      isMounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
-  const checkApprovalStatus = async () => {
-    if (!currentUser?.uid) return;
-    try {
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const snap = await getDoc(userDocRef);
-      if (snap.exists()) {
-        const data = snap.data() as UserProfile;
-        setUserProfile((prev) => (prev ? { ...prev, ...data } : data));
-      }
-    } catch (err) {
-      console.warn('Check approval status error:', err);
-    }
-  };
-
-  const signIn = async () => {
+  const clearAuthError = () => {
     setAuthError(null);
     setAuthErrorCode(null);
-    try {
-      await loginWithGoogle();
-    } catch (error: any) {
-      console.error('Failed to sign in with Google', error);
-      const code = error?.code || 'auth/unknown';
-      setAuthErrorCode(code);
-
-      if (code === 'auth/unauthorized-domain') {
-        setAuthError(
-          'Domain aplikasi ini belum didaftarkan di Firebase Console (Authorized Domains). Silakan tambahkan domain ke Firebase Authentication Settings.'
-        );
-      } else if (code === 'auth/popup-blocked') {
-        setAuthError(
-          'Jendela pop-up Google Sign-In diblokir oleh browser atau izin iframe. Izinkan pop-up di browser Anda.'
-        );
-      } else if (code === 'auth/popup-closed-by-user') {
-        setAuthError('Proses login dibatalkan karena jendela login ditutup.');
-      } else {
-        setAuthError(error.message || 'Gagal login dengan Google. Periksa koneksi atau izin.');
-      }
-      throw error;
-    }
   };
 
-  const signInWithEmailUser = async (email: string, pass: string, targetRole: LoginRoleOption = roleOption) => {
-    setAuthError(null);
-    setAuthErrorCode(null);
+  const signInWithEmailUser = async (
+    email: string,
+    pass: string,
+    targetRole: LoginRoleOption = roleOption
+  ) => {
+    clearAuthError();
     setRoleOption(targetRole);
 
     try {
-      await loginWithEmail(email.trim(), pass);
-    } catch (error: any) {
-      console.error('Email login failed:', error);
-      const code = error?.code || 'auth/unknown';
-      setAuthErrorCode(code);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass,
+      });
 
-      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        setAuthError('Email atau password tidak sesuai. Silakan periksa kembali.');
-      } else if (code === 'auth/invalid-email') {
-        setAuthError('Format email tidak valid.');
-      } else if (code === 'auth/operation-not-allowed') {
-        if (targetRole === 'tracking') {
-          signInAsConsumer(email);
-          return;
+      if (error) {
+        setAuthErrorCode(error.status ? String(error.status) : 'auth_error');
+        if (error.message.includes('Invalid login credentials')) {
+          setAuthError('Email atau password tidak sesuai. Silakan periksa kembali.');
+        } else if (error.message.includes('Email not confirmed')) {
+          setAuthError('Email Anda belum dikonfirmasi. Silakan periksa kotak masuk email Anda.');
+        } else {
+          setAuthError(error.message || 'Gagal masuk akun.');
         }
-        setAuthError('Login email/password belum diaktifkan di Firebase Console. Gunakan "Login dengan Google".');
-      } else {
-        setAuthError(error.message || 'Gagal masuk akun.');
+        throw error;
       }
-      throw error;
+
+      if (data.user) {
+        const profile = mapSupabaseUser(data.user);
+        setCurrentUser(profile);
+        setUserProfile(profile);
+      }
+    } catch (err: any) {
+      console.error('Supabase signInWithPassword error:', err);
+      throw err;
     }
   };
 
@@ -292,38 +203,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     displayName?: string,
     targetRole: LoginRoleOption = roleOption
   ) => {
-    setAuthError(null);
-    setAuthErrorCode(null);
+    clearAuthError();
     setRoleOption(targetRole);
+    setNeedsEmailConfirmation(false);
 
     try {
-      await registerWithEmail(email.trim(), pass);
-    } catch (error: any) {
-      console.error('Email registration failed:', error);
-      const code = error?.code || 'auth/unknown';
-      setAuthErrorCode(code);
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: pass,
+        options: {
+          data: {
+            name: displayName?.trim() || email.split('@')[0],
+            role: 'admin',
+          },
+        },
+      });
 
-      if (code === 'auth/email-already-in-use') {
-        setAuthError('Email ini sudah terdaftar. Silakan langsung login.');
-      } else if (code === 'auth/weak-password') {
-        setAuthError('Password minimal harus 6 karakter.');
-      } else if (code === 'auth/operation-not-allowed') {
-        if (targetRole === 'tracking') {
-          signInAsConsumer(displayName || email);
-          return;
+      if (error) {
+        setAuthErrorCode(error.status ? String(error.status) : 'signup_error');
+        if (error.message.includes('User already registered')) {
+          setAuthError('Email ini sudah terdaftar. Silakan langsung login.');
+        } else if (error.message.includes('Password should be')) {
+          setAuthError('Password minimal harus 6 karakter.');
+        } else {
+          setAuthError(error.message || 'Gagal mendaftar akun.');
         }
-        setAuthError('Metode registrasi email belum diaktifkan di Firebase Console.');
-      } else {
-        setAuthError(error.message || 'Gagal mendaftar akun.');
+        throw error;
       }
-      throw error;
+
+      // Check if email confirmation is required by Supabase settings
+      if (data.user && !data.session) {
+        setNeedsEmailConfirmation(true);
+      } else if (data.user && data.session) {
+        const profile = mapSupabaseUser(data.user);
+        setCurrentUser(profile);
+        setUserProfile(profile);
+      }
+    } catch (err: any) {
+      console.error('Supabase signUp error:', err);
+      throw err;
+    }
+  };
+
+  const resetPasswordForEmail = async (email: string) => {
+    clearAuthError();
+    setPasswordResetSent(false);
+
+    try {
+      const redirectUrl = `${window.location.origin}/update-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        setAuthError(error.message || 'Gagal mengirim email reset password.');
+        throw error;
+      }
+
+      setPasswordResetSent(true);
+    } catch (err: any) {
+      console.error('Supabase resetPassword error:', err);
+      throw err;
+    }
+  };
+
+  const updateUserPassword = async (password: string) => {
+    clearAuthError();
+    setPasswordUpdated(false);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) {
+        setAuthError(error.message || 'Gagal memperbarui kata sandi.');
+        throw error;
+      }
+
+      setPasswordUpdated(true);
+    } catch (err: any) {
+      console.error('Supabase updateUser password error:', err);
+      throw err;
     }
   };
 
   const signInAsConsumer = (identifier?: string) => {
     const isEmail = Boolean(identifier && identifier.includes('@'));
-    const consumerEmail = isEmail ? identifier! : `${(identifier || 'konsumen').replace(/\s+/g, '').toLowerCase()}@tracking.titipan.com`;
-    const consumerName = isEmail ? identifier!.split('@')[0] : (identifier || 'Konsumen Titipan');
+    const consumerEmail = isEmail
+      ? identifier!
+      : `${(identifier || 'konsumen').replace(/\s+/g, '').toLowerCase()}@tracking.titipan.com`;
+    const consumerName = isEmail
+      ? identifier!.split('@')[0]
+      : identifier || 'Konsumen Titipan';
 
     const profile: UserProfile = {
       uid: `consumer_${Date.now()}`,
@@ -338,35 +310,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(profile);
     setUserProfile(profile);
     setRoleOption('tracking');
-    setAuthError(null);
-    setAuthErrorCode(null);
+    clearAuthError();
   };
 
-  const signInAsDemo = (role: UserRole | 'pending') => {
+  const signIn = async () => {
+    // Fallback stub for Google login redirect if requested
+    setAuthError('Silakan gunakan email dan password untuk masuk ke sistem.');
+  };
+
+  const signInAsDemo = () => {
     // Legacy stub
   };
 
   const signOut = async () => {
     try {
-      localStorage.removeItem(DEMO_STORAGE_KEY);
-      await logoutUser();
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('Supabase signOut warning:', error);
+    } finally {
       setCurrentUser(null);
       setUserProfile(null);
       setSimulatedRole(null);
-    } catch (error) {
-      console.error('Failed to log out', error);
-      setCurrentUser(null);
-      setUserProfile(null);
     }
-  };
-
-  const clearAuthError = () => {
-    setAuthError(null);
-    setAuthErrorCode(null);
   };
 
   const simulateRole = (newRole: UserRole | null) => {
     setSimulatedRole(newRole);
+  };
+
+  const checkApprovalStatus = async () => {
+    // In Supabase, authenticated users with confirmed email are approved
   };
 
   const isBootstrapSuper =
@@ -379,15 +352,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       : userProfile?.role || (roleOption === 'tracking' ? 'consumer' : 'admin'));
 
   const isConsumer = effectiveRole === 'consumer';
-
-  const effectiveStatus: UserStatus = isBootstrapSuper || isConsumer
-    ? 'approved'
-    : userProfile?.status || 'approved';
+  const effectiveStatus: UserStatus = 'approved';
 
   const isSuperAdmin = effectiveRole === 'superadmin';
   const isApproved = isConsumer || isSuperAdmin || effectiveStatus === 'approved';
-  const isPendingApproval = !isConsumer && !isSuperAdmin && effectiveStatus === 'pending';
-  const isRejected = !isConsumer && !isSuperAdmin && effectiveStatus === 'rejected';
+  const isPendingApproval = false;
+  const isRejected = false;
 
   const value: AuthContextType = {
     currentUser,
@@ -404,10 +374,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     authError,
     authErrorCode,
+    needsEmailConfirmation,
+    passwordResetSent,
+    passwordUpdated,
     clearAuthError,
     signIn,
     signInWithEmailUser,
     registerWithEmailUser,
+    resetPasswordForEmail,
+    updateUserPassword,
     signInAsConsumer,
     signInAsDemo,
     signOut,

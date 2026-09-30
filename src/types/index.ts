@@ -172,3 +172,14 @@ export interface TrackingCustomerOrder {
     currentPosition: { lat: number; lng: number };
   };
 }
+
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+

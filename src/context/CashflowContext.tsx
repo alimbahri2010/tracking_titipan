@@ -8,6 +8,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
+import { supabase } from '../supabase';
 import {
   Transaction,
   Category,
@@ -19,6 +20,7 @@ import {
   AuditLogEntry,
   AuditActionType,
   AuditLogChange,
+  Project,
 } from '../types';
 import { useAuth } from './AuthContext';
 import { DEFAULT_CATEGORIES, getTodayDateString, formatRupiah } from '../utils/formatters';
@@ -27,6 +29,7 @@ interface CashflowContextType {
   transactions: Transaction[];
   filteredTransactions: Transaction[];
   categories: Category[];
+  projects: Project[];
   usersList: UserProfile[];
   preapprovedList: PreapprovedEmail[];
   auditLogs: AuditLogEntry[];
@@ -38,6 +41,9 @@ interface CashflowContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt' | 'createdByUid' | 'createdByName' | 'createdByEmail'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  addProject: (name: string, description?: string) => Promise<Project>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   addCategory: (cat: Omit<Category, 'id' | 'createdAt'>) => Promise<string>;
   updateCategory: (id: string, cat: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
@@ -89,6 +95,7 @@ const FALLBACK_CATEGORIES: Category[] = DEFAULT_CATEGORIES.map((c, idx) => ({
 export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, userProfile, isSuperAdmin } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [preapprovedList, setPreapprovedList] = useState<PreapprovedEmail[]>([]);
@@ -208,42 +215,66 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => unsub();
   }, [currentUser]);
 
-  // Subscribe to Transactions in Firestore
+  // Load User Transactions & Projects from Supabase (enforces RLS per user)
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
       return;
     }
 
-    if (!auth.currentUser) {
-      // Local demo mode: transactions already loaded from localStorage or state
-      setLoading(false);
-      return;
+    let isMounted = true;
+
+    async function loadSupabaseUserData() {
+      try {
+        // Query user's private projects from Supabase (satisfies: "each user should only see their own projects")
+        const { data: projData, error: projErr } = await supabase
+          .from('projects')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (isMounted && projData) {
+          setProjects(projData as Project[]);
+        }
+
+        // Query user's private transactions from Supabase (Row Level Security protected)
+        const { data: txData, error: txErr } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (isMounted && txData && txData.length > 0) {
+          const list: Transaction[] = txData.map((row: any) => ({
+            id: row.id,
+            type: row.type,
+            amount: Number(row.amount),
+            categoryId: row.category_id,
+            categoryName: row.category_name,
+            categoryGroup: row.category_group,
+            categoryColor: row.category_color,
+            date: row.date,
+            description: row.description,
+            paymentMethod: row.payment_method,
+            referenceNumber: row.reference_number,
+            createdByUid: row.user_id,
+            createdByName: currentUser?.displayName || 'Admin',
+            createdByEmail: currentUser?.email || '',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          }));
+          setTransactions(list);
+        }
+      } catch (err) {
+        console.warn('Supabase query error:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
     }
 
-    const txCollection = collection(db, 'transactions');
-    const unsub = onSnapshot(
-      txCollection,
-      (snapshot) => {
-        const list: Transaction[] = [];
-        snapshot.forEach((docSnap) => {
-          list.push({ id: docSnap.id, ...docSnap.data() } as Transaction);
-        });
-        list.sort((a, b) => {
-          const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
-          if (dateDiff !== 0) return dateDiff;
-          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-        });
-        setTransactions(list);
-        setLoading(false);
-      },
-      (error) => {
-        console.warn('Transactions snapshot listener error:', error);
-        setLoading(false);
-      }
-    );
+    loadSupabaseUserData();
 
-    return () => unsub();
+    return () => {
+      isMounted = false;
+    };
   }, [currentUser]);
 
   // Subscribe to Users list & Preapprovals
@@ -510,13 +541,31 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updatedAt: now,
     };
 
-    // If real Firebase Auth user, persist to Firestore
-    if (auth.currentUser) {
+    // If authenticated user, persist to Supabase transactions table (protected by RLS)
+    if (currentUser?.uid) {
       try {
-        const newDocRef = doc(db, 'transactions', id);
-        await setDoc(newDocRef, newTx);
+        const { data: inserted, error: insertErr } = await supabase
+          .from('transactions')
+          .insert({
+            type: data.type,
+            amount: Number(data.amount),
+            category_id: data.categoryId,
+            category_name: data.categoryName,
+            category_group: data.categoryGroup || null,
+            category_color: data.categoryColor || null,
+            date: data.date,
+            description: data.description,
+            payment_method: data.paymentMethod,
+            reference_number: data.referenceNumber || null,
+          })
+          .select()
+          .single();
+
+        if (inserted?.id) {
+          newTx.id = inserted.id;
+        }
       } catch (err) {
-        console.warn('Firestore write failed, falling back to local state:', err);
+        console.warn('Supabase insert transaction error:', err);
       }
     }
 
@@ -527,7 +576,7 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     await logAudit({
       action: 'create_transaction',
       actionLabel: 'Pencatatan Transaksi Baru',
-      targetId: id,
+      targetId: newTx.id,
       targetType: 'transaction',
       summary: `Mencatat ${data.type === 'income' ? 'Pemasukan' : 'Pengeluaran'} "${data.description}" sebesar ${formatRupiah(Number(data.amount))} via ${data.paymentMethod}`,
       details: {
@@ -540,19 +589,33 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       },
     });
 
-    return id;
+    return newTx.id;
   };
 
   const updateTransaction = async (id: string, data: Partial<Transaction>): Promise<void> => {
     const now = new Date().toISOString();
     const oldTx = transactions.find((t) => t.id === id);
 
-    if (auth.currentUser) {
+    if (currentUser?.uid) {
       try {
-        const docRef = doc(db, 'transactions', id);
-        await setDoc(docRef, { ...data, updatedAt: now }, { merge: true });
+        await supabase
+          .from('transactions')
+          .update({
+            type: data.type,
+            amount: data.amount !== undefined ? Number(data.amount) : undefined,
+            category_id: data.categoryId,
+            category_name: data.categoryName,
+            category_group: data.categoryGroup,
+            category_color: data.categoryColor,
+            date: data.date,
+            description: data.description,
+            payment_method: data.paymentMethod,
+            reference_number: data.referenceNumber,
+            updated_at: now,
+          })
+          .eq('id', id);
       } catch (err) {
-        console.warn('Firestore update failed, falling back to local state:', err);
+        console.warn('Supabase update transaction error:', err);
       }
     }
 
@@ -632,12 +695,11 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteTransaction = async (id: string): Promise<void> => {
     const targetTx = transactions.find((t) => t.id === id);
 
-    if (auth.currentUser) {
+    if (currentUser?.uid) {
       try {
-        const docRef = doc(db, 'transactions', id);
-        await deleteDoc(docRef);
+        await supabase.from('transactions').delete().eq('id', id);
       } catch (err) {
-        console.warn('Firestore delete failed, falling back to local state:', err);
+        console.warn('Supabase delete transaction error:', err);
       }
     }
 
@@ -660,6 +722,44 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         },
       });
     }
+  };
+
+  const addProject = async (name: string, description?: string): Promise<Project> => {
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        name: name.trim(),
+        description: description?.trim() || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    setProjects((prev) => [data as Project, ...prev]);
+    return data as Project;
+  };
+
+  const updateProject = async (id: string, updates: Partial<Project>): Promise<void> => {
+    const { error } = await supabase
+      .from('projects')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
+      )
+    );
+  };
+
+  const deleteProject = async (id: string): Promise<void> => {
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) throw error;
+    setProjects((prev) => prev.filter((p) => p.id !== id));
   };
 
   const addCategory = async (cat: Omit<Category, 'id' | 'createdAt'>): Promise<string> => {
@@ -1023,6 +1123,7 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     transactions,
     filteredTransactions,
     categories,
+    projects,
     usersList,
     preapprovedList,
     auditLogs,
@@ -1034,6 +1135,9 @@ export const CashflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    addProject,
+    updateProject,
+    deleteProject,
     addCategory,
     updateCategory,
     deleteCategory,

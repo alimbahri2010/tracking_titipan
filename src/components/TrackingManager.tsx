@@ -67,6 +67,7 @@ export const TrackingManager: React.FC = () => {
   const [newComment, setNewComment] = useState<string>('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isMapDisabled, setIsMapDisabled] = useState<boolean>(true);
 
   // Real-time Firestore Sync for tracking_orders
   useEffect(() => {
@@ -332,8 +333,14 @@ export const TrackingManager: React.FC = () => {
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-800 tracking-tight">
                 Tracking Delivery
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                LIVE GPS
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                  isMapDisabled
+                    ? 'bg-slate-100 text-slate-600 border-slate-300'
+                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                }`}
+              >
+                {isMapDisabled ? 'PETA OFF' : 'LIVE GPS'}
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium">
@@ -368,7 +375,7 @@ export const TrackingManager: React.FC = () => {
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Peta & Kartu</span>
+              <span>{isMapDisabled ? 'Daftar & Detail' : 'Peta & Kartu'}</span>
             </button>
             <button
               type="button"
@@ -548,375 +555,447 @@ export const TrackingManager: React.FC = () => {
             )}
           </div>
 
-          {/* RIGHT COLUMN: Interactive High-Fidelity Styled Map View */}
-          <div className="lg:col-span-8 bg-[#EBF2F7] rounded-3xl border border-slate-300/80 shadow-md relative overflow-hidden min-h-[580px] lg:min-h-[760px] flex flex-col justify-between">
-            {/* Styled Background Map Canvas (SVG Vector Map Matching Screenshot Aesthetic) */}
-            <div className="absolute inset-0 z-0 select-none overflow-hidden bg-[#ECE8E1]">
-              <svg
-                className="w-full h-full object-cover transition-transform duration-300"
-                style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
-                viewBox="0 0 1000 800"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                {/* Background Landfill */}
-                <rect width="1000" height="800" fill="#EFECE6" />
+          {/* RIGHT COLUMN: Interactive High-Fidelity Styled Map View or Disabled Placeholder */}
+          {isMapDisabled ? (
+            <div className="lg:col-span-8 bg-gradient-to-b from-[#F8FAFC] to-[#F1F5F9] rounded-3xl border border-slate-200/90 shadow-2xs relative overflow-hidden min-h-[580px] lg:min-h-[760px] flex flex-col items-center justify-center p-6 sm:p-10 text-center">
+              {/* Subtle background decorative pattern */}
+              <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#0e6e7d_1px,transparent_1px)] [background-size:16px_16px]" />
 
-                {/* Urban Blocks & Parks */}
-                <path d="M 50,20 L 350,15 L 360,180 L 70,190 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-                <path d="M 400,30 L 780,25 L 820,240 L 410,210 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-                <path d="M 120,220 L 380,220 L 370,480 L 100,450 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-                <path d="M 550,260 L 920,280 L 950,560 L 520,530 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-                <path d="M 150,520 L 450,510 L 430,760 L 120,740 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-                <path d="M 580,580 L 950,590 L 920,780 L 610,770 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
-
-                {/* River / Water Channel in Light Blue */}
-                <path
-                  d="M 440,0 C 430,120 400,240 370,360 C 340,480 320,580 430,690 C 490,750 560,780 620,800 L 700,800 C 650,750 580,720 520,650 C 450,560 460,460 480,360 C 510,240 540,120 540,0 Z"
-                  fill="#CEE4F2"
-                  opacity="0.9"
-                />
-
-                {/* Secondary Street Grid lines (Light gray & white) */}
-                <g stroke="#FFFFFF" strokeWidth="3" opacity="0.9" strokeLinecap="round">
-                  <line x1="80" y1="90" x2="330" y2="90" />
-                  <line x1="80" y1="140" x2="340" y2="140" />
-                  <line x1="160" y1="30" x2="160" y2="180" />
-                  <line x1="260" y1="30" x2="260" y2="180" />
-
-                  <line x1="130" y1="280" x2="360" y2="280" />
-                  <line x1="120" y1="340" x2="350" y2="340" />
-                  <line x1="110" y1="400" x2="340" y2="400" />
-                  <line x1="190" y1="230" x2="190" y2="460" />
-                  <line x1="280" y1="230" x2="280" y2="470" />
-
-                  <line x1="450" y1="80" x2="770" y2="80" />
-                  <line x1="450" y1="140" x2="780" y2="140" />
-                  <line x1="580" y1="40" x2="580" y2="200" />
-                  <line x1="680" y1="40" x2="680" y2="210" />
-
-                  <line x1="560" y1="340" x2="900" y2="340" />
-                  <line x1="550" y1="420" x2="910" y2="420" />
-                  <line x1="540" y1="480" x2="930" y2="480" />
-                  <line x1="660" y1="270" x2="660" y2="540" />
-                  <line x1="770" y1="270" x2="770" y2="550" />
-                  <line x1="860" y1="280" x2="860" y2="560" />
-                </g>
-
-                {/* Primary Yellow Avenues / Highways */}
-                <g stroke="#FED786" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M 0,220 L 380,220 C 440,220 480,200 520,180 L 1000,160" />
-                  <path d="M 220,0 L 220,500 C 220,570 260,620 330,650 L 520,700 L 1000,690" />
-                  <path d="M 520,180 L 580,320 L 760,540 L 980,620" />
-                  <path d="M 440,580 L 640,780" />
-                </g>
-
-                {/* White Inner Highway Centerline */}
-                <g stroke="#FFFDF8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M 0,220 L 380,220 C 440,220 480,200 520,180 L 1000,160" />
-                  <path d="M 220,0 L 220,500 C 220,570 260,620 330,650 L 520,700 L 1000,690" />
-                  <path d="M 520,180 L 580,320 L 760,540 L 980,620" />
-                  <path d="M 440,580 L 640,780" />
-                </g>
-
-                {/* Soft Bridge Shadow over River */}
-                <line x1="435" y1="220" x2="505" y2="200" stroke="#718096" strokeWidth="12" opacity="0.25" strokeLinecap="butt" />
-                <line x1="435" y1="220" x2="505" y2="200" stroke="#FED786" strokeWidth="10" strokeLinecap="butt" />
-
-                {/* ACTIVE ROUTE LINE (Vivid Blue matching screenshot!) */}
-                {selectedOrder && (
-                  <>
-                    <g stroke="#2563EB" strokeLinecap="round" strokeLinejoin="round">
-                      {/* Outer glow */}
-                      <path
-                        d="M 538,150 L 568,150 L 570,265 L 555,310 L 550,390 L 580,480 L 660,560 L 650,680"
-                        strokeWidth="10"
-                        stroke="#93C5FD"
-                        opacity="0.5"
-                        fill="none"
-                      />
-                      {/* Core Blue Route */}
-                      <path
-                        d="M 538,150 L 568,150 L 570,265 L 555,310 L 550,390 L 580,480 L 660,560 L 650,680"
-                        strokeWidth="5"
-                        fill="none"
-                      />
-                    </g>
-
-                    {/* Alternative / Secondary Route (Light dashed blue) */}
-                    <path
-                      d="M 550,390 L 520,440 L 530,520 L 610,610 L 650,680"
-                      stroke="#93C5FD"
-                      strokeWidth="3.5"
-                      strokeDasharray="6 4"
-                      fill="none"
-                      opacity="0.8"
-                    />
-
-                    {/* START / PICKUP PIN (Blue Marker with 'Pickup' speech label) */}
-                    <g transform="translate(538, 150)">
-                      <circle cx="0" cy="0" r="14" fill="#2563EB" opacity="0.2" className="animate-ping" />
-                      <circle cx="0" cy="0" r="6.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2.5" />
-                      {/* Pickup Label Bubble */}
-                      <g transform="translate(-26, -34)">
-                        <rect width="52" height="22" rx="6" fill="#FFFFFF" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.15))" />
-                        <text x="26" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1E293B">
-                          Pickup
-                        </text>
-                      </g>
-                    </g>
-
-                    {/* LIVE TRUCK / VEHICLE ICON ON ROUTE (Matching Screenshot!) */}
-                    <g transform="translate(552, 315)">
-                      {/* Radar Pulse Rings */}
-                      <circle cx="0" cy="0" r="28" fill="#2563EB" opacity="0.12" className="animate-ping" />
-                      <circle cx="0" cy="0" r="20" fill="#2563EB" opacity="0.2" />
-                      <circle cx="0" cy="0" r="15" fill="#FFFFFF" filter="drop-shadow(0px 3px 6px rgba(0,0,0,0.25))" />
-
-                      {/* Top-Down Delivery Truck Shape */}
-                      <g transform="rotate(15)">
-                        {/* Truck Cabin & Wheels */}
-                        <rect x="-6" y="-11" width="12" height="22" rx="3" fill="#1E293B" />
-                        <rect x="-5" y="-10" width="10" height="7" rx="2" fill="#3B82F6" />
-                        <rect x="-4" y="-2" width="8" height="11" rx="1" fill="#94A3B8" />
-                        {/* Headlights */}
-                        <circle cx="-3" cy="-11" r="1" fill="#FEF08A" />
-                        <circle cx="3" cy="-11" r="1" fill="#FEF08A" />
-                      </g>
-                    </g>
-
-                    {/* END / DROPOFF PIN (Blue Marker with 'Dropoff' speech label) */}
-                    <g transform="translate(650, 680)">
-                      <circle cx="0" cy="0" r="14" fill="#2563EB" opacity="0.2" className="animate-ping" />
-                      <circle cx="0" cy="0" r="6.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2.5" />
-                      {/* Dropoff Label Bubble */}
-                      <g transform="translate(-28, 14)">
-                        <rect width="56" height="22" rx="6" fill="#FFFFFF" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.15))" />
-                        <text x="28" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1E293B">
-                          Dropoff
-                        </text>
-                      </g>
-                    </g>
-                  </>
-                )}
-              </svg>
-            </div>
-
-            {/* TOP RIGHT FLOATING CARD: Driver Information (Matches Screenshot!) */}
-            {selectedOrder ? (
-              <div className="relative z-10 m-3 sm:m-5 self-end w-full max-w-[280px] sm:max-w-[310px] space-y-3 pointer-events-auto">
-                <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-lg space-y-3">
-                  {/* Driver Profile Header */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-slate-300 text-slate-700 font-extrabold text-sm flex items-center justify-center shrink-0">
-                      {selectedOrder.driver.avatar}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-sm font-extrabold text-slate-900 leading-tight truncate">
-                        {selectedOrder.driver.name}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        {selectedOrder.driver.role}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Email with copy */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
-                    <div className="flex items-center gap-2 truncate">
-                      <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate text-[11px] font-medium">{selectedOrder.driver.email}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(selectedOrder.driver.email, 'email')}
-                      className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
-                      title="Salin Email"
-                    >
-                      {copiedField === 'email' ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Phone with copy */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
-                    <div className="flex items-center gap-2 truncate">
-                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate text-[11px] font-medium font-mono">{selectedOrder.driver.phone}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(selectedOrder.driver.phone, 'phone')}
-                      className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
-                      title="Salin Telepon"
-                    >
-                      {copiedField === 'phone' ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
+              <div className="relative z-10 max-w-md space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-slate-200/80 text-slate-500 flex items-center justify-center mx-auto shadow-inner border border-slate-300/60">
+                  <MapPin className="w-8 h-8 opacity-75" />
+                </div>
+                <div className="space-y-1.5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-slate-200/80 text-slate-700 border border-slate-300/80">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    PETA SEMENTARA DINONAKTIFKAN
+                  </span>
+                  <h3 className="text-lg font-extrabold text-slate-800 tracking-tight pt-1">
+                    Tampilan Peta GPS Dinonaktifkan
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                    Fitur peta live tracking rute armada sedang dinonaktifkan sementara. Seluruh pemantauan pesanan, status pengiriman, dan rincian konsumen tetap aktif dan dapat dikelola melalui daftar pesanan di sebelah kiri atau tampilan tabel list data.
+                  </p>
                 </div>
 
-                {/* FLOATING ACTIVITY / TIMELINE PANEL (Matches Screenshot!) */}
-                {isActivityOpen && (
-                  <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-lg space-y-3 animate-in fade-in">
-                    {/* Header */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="text-xs font-extrabold text-slate-800">Activity</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">
-                          esc
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setIsActivityOpen(false)}
-                          className="text-slate-400 hover:text-slate-700 p-1 rounded-md transition-colors cursor-pointer"
-                          title="Tutup Activity"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                {/* Quick preview card if an order is selected */}
+                {selectedOrder && (
+                  <div className="bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200 text-left space-y-2.5 shadow-xs text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-800 font-mono">
+                        {selectedOrder.orderNumber}
+                      </span>
+                      {getStatusBadge(selectedOrder.status)}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Pickup</p>
+                        <p className="font-medium line-clamp-1">{selectedOrder.originAddress}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Dropoff</p>
+                        <p className="font-medium line-clamp-1">{selectedOrder.destinationAddress}</p>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-100 pt-2 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500">
+                        Driver: <strong className="text-slate-700">{selectedOrder.driver.name}</strong> ({selectedOrder.driver.plateNumber})
+                      </span>
+                      <span className="font-bold text-emerald-700">{selectedOrder.estimatedArrival}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <TableIcon className="w-3.5 h-3.5 text-[#0e6e7d]" />
+                    <span>Buka Tampilan Tabel Data</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMapDisabled(false)}
+                    className="px-4 py-2.5 rounded-xl bg-[#0e6e7d] hover:bg-[#0c4f5b] text-white text-xs font-extrabold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>Aktifkan Peta Kembali</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="lg:col-span-8 bg-[#EBF2F7] rounded-3xl border border-slate-300/80 shadow-md relative overflow-hidden min-h-[580px] lg:min-h-[760px] flex flex-col justify-between">
+              {/* Styled Background Map Canvas (SVG Vector Map Matching Screenshot Aesthetic) */}
+              <div className="absolute inset-0 z-0 select-none overflow-hidden bg-[#ECE8E1]">
+                <svg
+                  className="w-full h-full object-cover transition-transform duration-300"
+                  style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
+                  viewBox="0 0 1000 800"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {/* Background Landfill */}
+                  <rect width="1000" height="800" fill="#EFECE6" />
+
+                  {/* Urban Blocks & Parks */}
+                  <path d="M 50,20 L 350,15 L 360,180 L 70,190 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+                  <path d="M 400,30 L 780,25 L 820,240 L 410,210 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+                  <path d="M 120,220 L 380,220 L 370,480 L 100,450 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+                  <path d="M 550,260 L 920,280 L 950,560 L 520,530 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+                  <path d="M 150,520 L 450,510 L 430,760 L 120,740 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+                  <path d="M 580,580 L 950,590 L 920,780 L 610,770 Z" fill="#E8E5DD" stroke="#DFDBD0" strokeWidth="2" />
+
+                  {/* River / Water Channel in Light Blue */}
+                  <path
+                    d="M 440,0 C 430,120 400,240 370,360 C 340,480 320,580 430,690 C 490,750 560,780 620,800 L 700,800 C 650,750 580,720 520,650 C 450,560 460,460 480,360 C 510,240 540,120 540,0 Z"
+                    fill="#CEE4F2"
+                    opacity="0.9"
+                  />
+
+                  {/* Secondary Street Grid lines (Light gray & white) */}
+                  <g stroke="#FFFFFF" strokeWidth="3" opacity="0.9" strokeLinecap="round">
+                    <line x1="80" y1="90" x2="330" y2="90" />
+                    <line x1="80" y1="140" x2="340" y2="140" />
+                    <line x1="160" y1="30" x2="160" y2="180" />
+                    <line x1="260" y1="30" x2="260" y2="180" />
+
+                    <line x1="130" y1="280" x2="360" y2="280" />
+                    <line x1="120" y1="340" x2="350" y2="340" />
+                    <line x1="110" y1="400" x2="340" y2="400" />
+                    <line x1="190" y1="230" x2="190" y2="460" />
+                    <line x1="280" y1="230" x2="280" y2="470" />
+
+                    <line x1="450" y1="80" x2="770" y2="80" />
+                    <line x1="450" y1="140" x2="780" y2="140" />
+                    <line x1="580" y1="40" x2="580" y2="200" />
+                    <line x1="680" y1="40" x2="680" y2="210" />
+
+                    <line x1="560" y1="340" x2="900" y2="340" />
+                    <line x1="550" y1="420" x2="910" y2="420" />
+                    <line x1="540" y1="480" x2="930" y2="480" />
+                    <line x1="660" y1="270" x2="660" y2="540" />
+                    <line x1="770" y1="270" x2="770" y2="550" />
+                    <line x1="860" y1="280" x2="860" y2="560" />
+                  </g>
+
+                  {/* Primary Yellow Avenues / Highways */}
+                  <g stroke="#FED786" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M 0,220 L 380,220 C 440,220 480,200 520,180 L 1000,160" />
+                    <path d="M 220,0 L 220,500 C 220,570 260,620 330,650 L 520,700 L 1000,690" />
+                    <path d="M 520,180 L 580,320 L 760,540 L 980,620" />
+                    <path d="M 440,580 L 640,780" />
+                  </g>
+
+                  {/* White Inner Highway Centerline */}
+                  <g stroke="#FFFDF8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M 0,220 L 380,220 C 440,220 480,200 520,180 L 1000,160" />
+                    <path d="M 220,0 L 220,500 C 220,570 260,620 330,650 L 520,700 L 1000,690" />
+                    <path d="M 520,180 L 580,320 L 760,540 L 980,620" />
+                    <path d="M 440,580 L 640,780" />
+                  </g>
+
+                  {/* Soft Bridge Shadow over River */}
+                  <line x1="435" y1="220" x2="505" y2="200" stroke="#718096" strokeWidth="12" opacity="0.25" strokeLinecap="butt" />
+                  <line x1="435" y1="220" x2="505" y2="200" stroke="#FED786" strokeWidth="10" strokeLinecap="butt" />
+
+                  {/* ACTIVE ROUTE LINE (Vivid Blue matching screenshot!) */}
+                  {selectedOrder && (
+                    <>
+                      <g stroke="#2563EB" strokeLinecap="round" strokeLinejoin="round">
+                        {/* Outer glow */}
+                        <path
+                          d="M 538,150 L 568,150 L 570,265 L 555,310 L 550,390 L 580,480 L 660,560 L 650,680"
+                          strokeWidth="10"
+                          stroke="#93C5FD"
+                          opacity="0.5"
+                          fill="none"
+                        />
+                        {/* Core Blue Route */}
+                        <path
+                          d="M 538,150 L 568,150 L 570,265 L 555,310 L 550,390 L 580,480 L 660,560 L 650,680"
+                          strokeWidth="5"
+                          fill="none"
+                        />
+                      </g>
+
+                      {/* Alternative / Secondary Route (Light dashed blue) */}
+                      <path
+                        d="M 550,390 L 520,440 L 530,520 L 610,610 L 650,680"
+                        stroke="#93C5FD"
+                        strokeWidth="3.5"
+                        strokeDasharray="6 4"
+                        fill="none"
+                        opacity="0.8"
+                      />
+
+                      {/* START / PICKUP PIN (Blue Marker with 'Pickup' speech label) */}
+                      <g transform="translate(538, 150)">
+                        <circle cx="0" cy="0" r="14" fill="#2563EB" opacity="0.2" className="animate-ping" />
+                        <circle cx="0" cy="0" r="6.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2.5" />
+                        {/* Pickup Label Bubble */}
+                        <g transform="translate(-26, -34)">
+                          <rect width="52" height="22" rx="6" fill="#FFFFFF" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.15))" />
+                          <text x="26" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1E293B">
+                            Pickup
+                          </text>
+                        </g>
+                      </g>
+
+                      {/* LIVE TRUCK / VEHICLE ICON ON ROUTE (Matching Screenshot!) */}
+                      <g transform="translate(552, 315)">
+                        {/* Radar Pulse Rings */}
+                        <circle cx="0" cy="0" r="28" fill="#2563EB" opacity="0.12" className="animate-ping" />
+                        <circle cx="0" cy="0" r="20" fill="#2563EB" opacity="0.2" />
+                        <circle cx="0" cy="0" r="15" fill="#FFFFFF" filter="drop-shadow(0px 3px 6px rgba(0,0,0,0.25))" />
+
+                        {/* Top-Down Delivery Truck Shape */}
+                        <g transform="rotate(15)">
+                          {/* Truck Cabin & Wheels */}
+                          <rect x="-6" y="-11" width="12" height="22" rx="3" fill="#1E293B" />
+                          <rect x="-5" y="-10" width="10" height="7" rx="2" fill="#3B82F6" />
+                          <rect x="-4" y="-2" width="8" height="11" rx="1" fill="#94A3B8" />
+                          {/* Headlights */}
+                          <circle cx="-3" cy="-11" r="1" fill="#FEF08A" />
+                          <circle cx="3" cy="-11" r="1" fill="#FEF08A" />
+                        </g>
+                      </g>
+
+                      {/* END / DROPOFF PIN (Blue Marker with 'Dropoff' speech label) */}
+                      <g transform="translate(650, 680)">
+                        <circle cx="0" cy="0" r="14" fill="#2563EB" opacity="0.2" className="animate-ping" />
+                        <circle cx="0" cy="0" r="6.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2.5" />
+                        {/* Dropoff Label Bubble */}
+                        <g transform="translate(-28, 14)">
+                          <rect width="56" height="22" rx="6" fill="#FFFFFF" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.15))" />
+                          <text x="28" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1E293B">
+                            Dropoff
+                          </text>
+                        </g>
+                      </g>
+                    </>
+                  )}
+                </svg>
+              </div>
+
+              {/* TOP RIGHT FLOATING CARD: Driver Information (Matches Screenshot!) */}
+              {selectedOrder ? (
+                <div className="relative z-10 m-3 sm:m-5 self-end w-full max-w-[280px] sm:max-w-[310px] space-y-3 pointer-events-auto">
+                  <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-lg space-y-3">
+                    {/* Driver Profile Header */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full bg-slate-300 text-slate-700 font-extrabold text-sm flex items-center justify-center shrink-0">
+                        {selectedOrder.driver.avatar}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-extrabold text-slate-900 leading-tight truncate">
+                          {selectedOrder.driver.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {selectedOrder.driver.role}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Comment Input */}
-                    <form onSubmit={handleAddComment} className="relative">
-                      <input
-                        type="text"
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Leave a comment..."
-                        className="w-full pl-3 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0e6e7d] text-slate-700 placeholder-slate-400"
-                      />
+                    {/* Email with copy */}
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                      <div className="flex items-center gap-2 truncate">
+                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate text-[11px] font-medium">{selectedOrder.driver.email}</span>
+                      </div>
                       <button
-                        type="submit"
-                        disabled={!newComment.trim()}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0e6e7d] disabled:opacity-30 cursor-pointer"
+                        type="button"
+                        onClick={() => handleCopy(selectedOrder.driver.email, 'email')}
+                        className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
+                        title="Salin Email"
                       >
-                        <Send className="w-3.5 h-3.5" />
+                        {copiedField === 'email' ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
                       </button>
-                    </form>
+                    </div>
 
-                    {/* Milestones list */}
-                    <div className="space-y-3 pt-1 text-left max-h-48 overflow-y-auto pr-1">
-                      {selectedOrder.activities.map((act) => (
-                        <div key={act.id} className="flex items-start gap-2.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 shrink-0 mt-1" />
-                          <div className="space-y-0.5 min-w-0 flex-1">
-                            <p className="text-[11px] font-bold text-slate-800 leading-tight">
-                              {act.location}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-medium">
-                              {act.time}
-                            </p>
-                            {act.note && (
-                              <p className="text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100 mt-1">
-                                {act.note}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    {/* Phone with copy */}
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700">
+                      <div className="flex items-center gap-2 truncate">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate text-[11px] font-medium font-mono">{selectedOrder.driver.phone}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(selectedOrder.driver.phone, 'phone')}
+                        className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer transition-colors"
+                        title="Salin Telepon"
+                      >
+                        {copiedField === 'phone' ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                     </div>
                   </div>
-                )}
 
-                {/* Button to reopen activity if closed */}
-                {!isActivityOpen && (
-                  <button
-                    type="button"
-                    onClick={() => setIsActivityOpen(true)}
-                    className="bg-white text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-bold flex items-center gap-2 hover:bg-slate-50 cursor-pointer ml-auto"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-[#0e6e7d]" />
-                    <span>Buka Log Aktivitas</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="relative z-10 m-auto p-6 max-w-sm bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-xl text-center space-y-3 pointer-events-auto">
-                <div className="w-12 h-12 rounded-2xl bg-teal-50 text-[#0e6e7d] flex items-center justify-center mx-auto shadow-xs border border-teal-100">
-                  <Compass className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-extrabold text-slate-800">
-                    Belum Ada Data Order Aktif
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Semua data seed pengiriman telah dibersihkan. Anda dapat menambahkan order pengiriman baru untuk memantau armada secara live.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#0e6e7d] hover:bg-[#0c4f5b] text-white text-xs font-extrabold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Buat Order Baru</span>
-                </button>
-              </div>
-            )}
+                  {/* FLOATING ACTIVITY / TIMELINE PANEL (Matches Screenshot!) */}
+                  {isActivityOpen && (
+                    <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-lg space-y-3 animate-in fade-in">
+                      {/* Header */}
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <span className="text-xs font-extrabold text-slate-800">Activity</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">
+                            esc
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsActivityOpen(false)}
+                            className="text-slate-400 hover:text-slate-700 p-1 rounded-md transition-colors cursor-pointer"
+                            title="Tutup Activity"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-            {/* BOTTOM BAR: Live Status Strip & Map Controls */}
-            <div className="relative z-10 p-3 sm:p-5 flex items-center justify-between gap-3 pointer-events-auto">
-              {/* Order quick info chip */}
-              {selectedOrder ? (
-                <div className="bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200 shadow-md flex items-center gap-3 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="font-extrabold text-slate-900 font-mono">
-                    {selectedOrder.orderNumber}
-                  </span>
-                  <span className="text-slate-300">|</span>
-                  <span className="font-medium text-slate-600 hidden sm:inline">
-                    Truk: {selectedOrder.driver.plateNumber} ({selectedOrder.driver.currentSpeed})
-                  </span>
-                  <span className="font-bold text-emerald-700">
-                    {selectedOrder.driver.remainingDistance} tersisa
-                  </span>
+                      {/* Comment Input */}
+                      <form onSubmit={handleAddComment} className="relative">
+                        <input
+                          type="text"
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Leave a comment..."
+                          className="w-full pl-3 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#0e6e7d] text-slate-700 placeholder-slate-400"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!newComment.trim()}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0e6e7d] disabled:opacity-30 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </form>
+
+                      {/* Milestones list */}
+                      <div className="space-y-3 pt-1 text-left max-h-48 overflow-y-auto pr-1">
+                        {selectedOrder.activities.map((act) => (
+                          <div key={act.id} className="flex items-start gap-2.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 shrink-0 mt-1" />
+                            <div className="space-y-0.5 min-w-0 flex-1">
+                              <p className="text-[11px] font-bold text-slate-800 leading-tight">
+                                {act.location}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                {act.time}
+                              </p>
+                              {act.note && (
+                                <p className="text-[10px] text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100 mt-1">
+                                  {act.note}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Button to reopen activity if closed */}
+                  {!isActivityOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsActivityOpen(true)}
+                      className="bg-white text-slate-700 px-3.5 py-2 rounded-xl border border-slate-200 shadow-md text-xs font-bold flex items-center gap-2 hover:bg-slate-50 cursor-pointer ml-auto"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-[#0e6e7d]" />
+                      <span>Buka Log Aktivitas</span>
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200 shadow-md text-xs text-slate-500 font-semibold flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-300" />
-                  <span>Peta Siap · Tidak ada armada aktif</span>
+                <div className="relative z-10 m-auto p-6 max-w-sm bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-xl text-center space-y-3 pointer-events-auto">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-[#0e6e7d] flex items-center justify-center mx-auto shadow-xs border border-teal-100">
+                    <Compass className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-extrabold text-slate-800">
+                      Belum Ada Data Order Aktif
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Semua data seed pengiriman telah dibersihkan. Anda dapat menambahkan order pengiriman baru untuk memantau armada secara live.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-[#0e6e7d] hover:bg-[#0c4f5b] text-white text-xs font-extrabold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Buat Order Baru</span>
+                  </button>
                 </div>
               )}
 
-              {/* Bottom Right Map Zoom & Target Controls (Matches Screenshot!) */}
-              <div className="bg-white/95 backdrop-blur-md p-1 rounded-2xl border border-slate-200 shadow-md flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setZoomLevel(100)}
-                  className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
-                  title="Target Ulang Lokasi"
-                >
-                  <Navigation className="w-3.5 h-3.5 rotate-45" />
-                </button>
-                <div className="w-[1px] h-4 bg-slate-200" />
-                <button
-                  type="button"
-                  onClick={() => setZoomLevel((z) => Math.max(80, z - 10))}
-                  className="px-2 py-1 text-xs font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
-                  title="Zoom Out"
-                >
-                  -
-                </button>
-                <span className="text-[11px] font-mono font-bold text-slate-700 px-1 select-none">
-                  {zoomLevel}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoomLevel((z) => Math.min(200, z + 10))}
-                  className="px-2 py-1 text-xs font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
-                  title="Zoom In"
-                >
-                  +
-                </button>
+              {/* BOTTOM BAR: Live Status Strip & Map Controls */}
+              <div className="relative z-10 p-3 sm:p-5 flex items-center justify-between gap-3 pointer-events-auto">
+                {/* Order quick info chip */}
+                {selectedOrder ? (
+                  <div className="bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200 shadow-md flex items-center gap-3 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="font-extrabold text-slate-900 font-mono">
+                      {selectedOrder.orderNumber}
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span className="font-medium text-slate-600 hidden sm:inline">
+                      Truk: {selectedOrder.driver.plateNumber} ({selectedOrder.driver.currentSpeed})
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {selectedOrder.driver.remainingDistance} tersisa
+                    </span>
+                  </div>
+                ) : (
+                  <div className="bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-slate-200 shadow-md text-xs text-slate-500 font-semibold flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-300" />
+                    <span>Peta Siap · Tidak ada armada aktif</span>
+                  </div>
+                )}
+
+                {/* Bottom Right Map Zoom & Target Controls (Matches Screenshot!) */}
+                <div className="bg-white/95 backdrop-blur-md p-1 rounded-2xl border border-slate-200 shadow-md flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(100)}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+                    title="Target Ulang Lokasi"
+                  >
+                    <Navigation className="w-3.5 h-3.5 rotate-45" />
+                  </button>
+                  <div className="w-[1px] h-4 bg-slate-200" />
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.max(80, z - 10))}
+                    className="px-2 py-1 text-xs font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    -
+                  </button>
+                  <span className="text-[11px] font-mono font-bold text-slate-700 px-1 select-none">
+                    {zoomLevel}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.min(200, z + 10))}
+                    className="px-2 py-1 text-xs font-black text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg cursor-pointer"
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         /* ================= FULL TABLE LIST VIEW: Customer Tracking Data ================= */
